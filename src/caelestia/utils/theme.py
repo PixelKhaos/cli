@@ -379,6 +379,27 @@ def apply_cava(colours: dict[str, str]) -> None:
 
 
 @log_exception
+def apply_firefox(colours: dict[str, str]) -> None:
+    template = gen_replace(colours, templates_dir / "userChrome.css", hash=True)
+    
+    firefox_chrome = Path.home() / ".mozilla/firefox"
+    zen_chrome = Path.home() / ".zen"
+    
+    shared_location = Path.home() / ".local/share/caelestia/zen"
+    shared_location.mkdir(parents=True, exist_ok=True)
+    write_file(shared_location / "userChrome.css", template)
+    
+    for browser_dir in [firefox_chrome, zen_chrome]:
+        if not browser_dir.exists():
+            continue
+        
+        for profile_dir in browser_dir.glob("*.*/"):
+            chrome_dir = profile_dir / "chrome"
+            chrome_dir.mkdir(parents=True, exist_ok=True)
+            write_file(chrome_dir / "userChrome.css", template)
+
+
+@log_exception
 def apply_user_templates(colours: dict[str, str], mode: str) -> None:
     if not user_templates_dir.is_dir():
         return
@@ -433,6 +454,8 @@ def apply_colours(colours: dict[str, str], mode: str) -> None:
                 apply_warp(colours, mode)
             if check("enableCava"):
                 apply_cava(colours)
+            if check("enableFirefox"):
+                apply_firefox(colours)
             apply_user_templates(colours, mode)
             
     finally:
