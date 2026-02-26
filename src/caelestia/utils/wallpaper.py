@@ -27,6 +27,10 @@ def is_valid_image(path: Path) -> bool:
     return path.is_file() and path.suffix in [".jpg", ".jpeg", ".png", ".webp", ".tif", ".tiff", ".gif"]
 
 
+def is_video(path: Path) -> bool:
+    return path.is_file() and path.suffix.lower() in [".mp4", ".mkv", ".webm", ".avi", ".mov", ".m4v"]
+
+
 def check_wall(wall: Path, filter_size: tuple[int, int], threshold: float) -> bool:
     with Image.open(wall) as img:
         width, height = img.size
@@ -142,16 +146,47 @@ def convert_gif(wall: Path) -> Path:
     return output_path
 
 
+def extract_video_frame(wall: Path) -> Path:
+    cache = wallpapers_cache_dir / compute_hash(wall)
+    output_path = cache / "video_frame.png"
+
+    if not output_path.exists():
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        result = subprocess.run(
+            [
+                "ffmpeg",
+                "-ss", "1",
+                "-i", str(wall),
+                "-vframes", "1",
+                "-q:v", "2",
+                str(output_path)
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        
+        if result.returncode != 0:
+            raise RuntimeError(f"Failed to extract frame from video: {wall}")
+
+    return output_path
+
+
 
 def set_wallpaper(wall: Path | str, no_smart: bool) -> None:
     # Make path absolute
     wall = Path(wall).resolve()
 
-    if not is_valid_image(wall):
-        raise ValueError(f'"{wall}" is not a valid image')
+    is_video_file = is_video(wall)
+    if not is_valid_image(wall) and not is_video_file:
+        raise ValueError(f'"{wall}" is not a valid image or video')
 
-    # Use gif's 1st frame for thumb only
-    wall_cache = convert_gif(wall) if wall.suffix.lower() == ".gif" else wall
+    if is_video_file:
+        wall_cache = extract_video_frame(wall)
+    elif wall.suffix.lower() == ".gif":
+        wall_cache = convert_gif(wall)
+    else:
+        wall_cache = wall
 
     # Update files
     wallpaper_path_path.parent.mkdir(parents=True, exist_ok=True)
